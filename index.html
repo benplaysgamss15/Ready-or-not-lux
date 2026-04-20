@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mansion Entry - Base Level</title>
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background-color: #000; 
+            touch-action: none; font-family: 'Courier New', Courier, monospace; 
+        }
+        canvas { display: block; }
+        
+        #ui { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none; z-index: 10; 
+        }
+        
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+            background: rgba(255, 255, 255, 0.8); border-radius: 50%; 
+            transform: translate(-50%, -50%); box-shadow: 0 0 5px #000;
+        }
+        
+        #interact-text {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: white; font-size: 18px; 
+            text-shadow: 2px 2px 2px #000; pointer-events: none;
+            background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 3px;
+        }
+        
+        #interact-btn {
+            position: absolute; top: 50%; left: 50%; width: 70px; height: 70px;
+            background: rgba(150, 150, 150, 0.3); border: 2px solid #fff;
+            border-radius: 50%; pointer-events: auto; display: none; 
+            justify-content: center; align-items: center; font-weight: bold; 
+            color: #fff; font-size: 16px; text-shadow: 1px 1px #000; user-select: none;
+            z-index: 1000; transform: translate(-50%, -50%);
+        }
+        
+        .joystick-zone { 
+            position: absolute; top: 0; width: 50%; height: 100%; pointer-events: auto; display: none;
+        }
+        #left-zone { left: 0; }
+        #right-zone { right: 0; }
+        
+        .joystick {
+            position: absolute; width: 120px; height: 120px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255,255,255,0.2);
+            display: none; pointer-events: none; transform: translate(-50%, -50%);
+        }
+        .joystick-knob {
+            position: absolute; width: 50px; height: 50px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3); top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+        }
+
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #1a1a24 0%, #020205 100%);
+            display: flex; flex-direction: column; justify-content: center; 
+            align-items: center; color: white; pointer-events: auto; z-index: 100;
+        }
+        #start-screen h1 { 
+            color: #d8c39b; font-size: 50px; text-shadow: 0 0 25px rgba(216, 195, 155, 0.4); 
+            margin-bottom: 10px; text-align: center; letter-spacing: 3px;
+        }
+        #start-screen p { margin-bottom: 40px; font-size: 18px; text-align: center; color: #aaa; }
+        .btn { 
+            background: #d8c39b; color: #000; border: none; padding: 15px 50px; 
+            font-size: 24px; font-weight: bold; border-radius: 3px; cursor: pointer; 
+            transition: 0.2s; font-family: 'Courier New', Courier, monospace;
+        }
+        .btn:hover { background: #fff; box-shadow: 0 0 20px rgba(216, 195, 155, 0.6); }
+    </style>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="crosshair"></div>
+        <div id="interact-text">[E] OPEN</div>
+        <div id="interact-btn">OPEN</div>
+        
+        <div id="left-zone" class="joystick-zone"></div>
+        <div id="right-zone" class="joystick-zone"></div>
+        <div id="joystick-left" class="joystick">
+            <div id="joystick-knob-left" class="joystick-knob"></div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1>THE MANSION</h1>
+        <p>
+            Explore the newly furnished 2-story estate.<br>
+            Optimized Engine - Ready for overrides.<br><br>
+            Mobile: Use on-screen joysticks.<br>
+            PC: WASD to move, Mouse to look.
+        </p>
+        <button id="start-btn" class="btn">ENTER ESTATE</button>
+    </div>
+
+    <script>
+        // === GAME GLOBALS ===
+        // Using 'var' exposes these to the Window object so your next Monkey Patch script can hook into them!
+        var scene, camera, renderer, clock;
+        var interactables = [];
+        var colliders = [];
+        var doors =[];
+
+        var pitch = 0, yaw = 0;
+        var keys = { w: false, a: false, s: false, d: false };
+        var moveDelta = { x: 0, y: 0 };
+        var currentLookingAtDoor = null;
+        var walkTime = 0;
+        var frameCount = 0; // Used for Raycaster optimization
+
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+
+        // === RESOURCES ===
+        var geoLibrary = {
+            box: new THREE.BoxGeometry(1, 1, 1),
+            plane: new THREE.PlaneGeometry(1, 1),
+            cylinder: new THREE.CylinderGeometry(1, 1, 1, 16),
+            cone: new THREE.ConeGeometry(1, 1, 4, 1)
+        };
+
+        var matLibrary = {
+            grass: new THREE.MeshLambertMaterial({ color: 0x0f1c0f }),
+            pathway: new THREE.MeshLambertMaterial({ color: 0x555555 }),
+            brick: new THREE.MeshLambertMaterial({ color: 0x4a2a20 }),    
+            houseInt: new THREE.MeshLambertMaterial({ color: 0xe6e4df }), 
+            woodFloor: new THREE.MeshLambertMaterial({ color: 0x3d2817 }), 
+            roof: new THREE.MeshLambertMaterial({ color: 0x111112 }),     
+            trim: new THREE.MeshLambertMaterial({ color: 0xffffff }),     
+            doorWood: new THREE.MeshLambertMaterial({ color: 0x2b190e }), 
+            window: new THREE.MeshBasicMaterial({ color: 0xffe6a3 }),     
+            fabric: new THREE.MeshLambertMaterial({ color: 0x243442 }),
+            marble: new THREE.MeshLambertMaterial({ color: 0xcccccc }),
+            metal: new THREE.MeshLambertMaterial({ color: 0x666666 }),
+            screen: new THREE.MeshBasicMaterial({ color: 0x4466ff }),     
+            gold: new THREE.MeshLambertMaterial({ color: 0xd4af37 })
+        };
+
+        // === CLASSES & GENERATION ===
+        class Door {
+            constructor(x, y, z, rotClosed, rotOpen) {
+                this.x = x; this.y = y; this.z = z;
+                this.width = 4;
+                this.rotClosed = rotClosed;
+                this.rotOpen = rotOpen;
+                
+                this.group = new THREE.Group();
+                this.group.position.set(x, y, z);
+                this.group.rotation.y = rotClosed;
+                this.state = 'closed'; 
+
+                this.mesh = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+                this.mesh.scale.set(this.width, 8, 0.4); 
+                this.mesh.position.set(2, 4, 0); 
+                this.group.add(this.mesh);
+
+                this.handle = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
+                this.handle.scale.set(0.1, 0.5, 0.1); 
+                this.handle.rotation.z = Math.PI / 2; 
+                this.handle.position.set(3.5, 4, 0.3);
+                this.group.add(this.handle);
+
+                this.mesh.userData = { isDoor: true, doorObj: this };
+                this.handle.userData = { isDoor: true, doorObj: this };
+                interactables.push(this.mesh, this.handle);
+
+                scene.add(this.group);
+                doors.push(this);
+            }
+            
+            getCollider() {
+                let rot = this.group.rotation.y;
+                let worldCenterX = this.x + 2 * Math.cos(rot);
+                let worldCenterZ = this.z - 2 * Math.sin(rot);
+                let w = Math.abs(Math.cos(rot) * 4) + 0.4;
+                let d = Math.abs(Math.sin(rot) * 4) + 0.4;
+
+                return {
+                    minX: worldCenterX - w/2 - 0.2, maxX: worldCenterX + w/2 + 0.2,
+                    minY: this.y, maxY: this.y + 8,
+                    minZ: worldCenterZ - d/2 - 0.2, maxZ: worldCenterZ + d/2 + 0.2
+                };
+            }
+
+            open() {
+                if (this.state !== 'closed') return;
+                this.state = 'opening';
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 0.08;
+                    if(progress >= 1) {
+                        progress = 1; this.state = 'open'; updateHoverUI(); clearInterval(interval);
+                    }
+                    this.group.rotation.y = this.rotClosed + (this.rotOpen - this.rotClosed) * progress;
+                }, 16);
+            }
+
+            close() {
+                if (this.state !== 'open') return;
+                this.state = 'closing';
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 0.08;
+                    if(progress >= 1) {
+                        progress = 1; this.state = 'closed'; updateHoverUI(); clearInterval(interval);
+                    }
+                    this.group.rotation.y = this.rotOpen + (this.rotClosed - this.rotOpen) * progress;
+                }, 16);
+            }
+        }
+
+        function createBlock(x, y, z, width, height, depth, material, collides = true) {
+            const block = new THREE.Mesh(geoLibrary.box, material);
+            block.scale.set(width, height, depth);
+            block.position.set(x, y, z);
+            scene.add(block);
+
+            if (collides) {
+                colliders.push({
+                    minX: x - width / 2, maxX: x + width / 2,
+                    minY: y - height / 2, maxY: y + height / 2,
+                    minZ: z - depth / 2, maxZ: z + depth / 2
+                });
+            }
+            return block;
+        }
+
+        function buildHouse() {
+            // Ground
+            const ground = new THREE.Mesh(geoLibrary.plane, matLibrary.grass);
+            ground.rotation.x = -Math.PI / 2;
+            ground.scale.set(200, 200, 1);
+            scene.add(ground);
+            createBlock(0, 0.1, 25, 6, 0.2, 30, matLibrary.pathway, false);
+
+            // Foundation
+            createBlock(0, 0.9, -10, 80, 1.8, 40, matLibrary.brick, false);
+            createBlock(0, 0.9, 12, 12, 1.8, 4, matLibrary.brick, false);
+
+            // Invisible porch barriers
+            createBlock(-6.5, 1, 14, 1, 2, 8, matLibrary.brick, true).visible = false;
+            createBlock(6.5, 1, 14, 1, 2, 8, matLibrary.brick, true).visible = false;
+
+            // Front Stairs
+            createBlock(0, 0.25, 16.5, 12, 0.5, 1, matLibrary.pathway, false);
+            createBlock(0, 0.75, 15.5, 12, 0.5, 1, matLibrary.pathway, false);
+            createBlock(0, 1.25, 14.5, 12, 0.5, 1, matLibrary.pathway, false);
+
+            // Exterior Shell
+            createBlock(-21.1, 12, 10, 37.8, 20, 1, matLibrary.brick); 
+            createBlock(21.1, 12, 10, 37.8, 20, 1, matLibrary.brick);
+            createBlock(0, 17, 10, 4.4, 10, 1, matLibrary.brick); 
+            createBlock(-40, 12, -10, 1, 20, 40, matLibrary.brick);
+            createBlock(40, 12, -10, 1, 20, 40, matLibrary.brick);
+            createBlock(0, 12, -30, 80, 20, 1, matLibrary.brick);
+
+            // Roof
+            createBlock(0, 22.5, -10, 82, 1, 42, matLibrary.roof, false);
+            const topRoof = new THREE.Mesh(geoLibrary.cone, matLibrary.roof);
+            topRoof.rotation.y = Math.PI / 4; 
+            topRoof.scale.set(55, 15, 55);
+            topRoof.position.set(0, 30, -10);
+            scene.add(topRoof);
+
+            // Portico
+            createBlock(-5, 6.5, 13, 0.8, 9, 0.8, matLibrary.trim);
+            createBlock(5, 6.5, 13, 0.8, 9, 0.8, matLibrary.trim);
+            createBlock(0, 11.5, 12.5, 13, 1, 5, matLibrary.trim, false);
+
+            // Main Door
+            new Door(-2, 2, 10, 0, Math.PI/2); 
+            createBlock(-2.1, 6, 10, 0.2, 8, 0.8, matLibrary.trim); 
+            createBlock(2.1, 6, 10, 0.2, 8, 0.8, matLibrary.trim); 
+            createBlock(0, 10.1, 10, 4.4, 0.2, 0.8, matLibrary.trim); 
+
+            // Floor Slabs
+            createBlock(0, 1.5, -10, 80, 1, 40, matLibrary.woodFloor, false); // 1F Base
+            
+            // 2nd Floor Balcony Wraps
+            createBlock(-25, 11.5, -10, 30, 1, 40, matLibrary.woodFloor, false); 
+            createBlock(25, 11.5, -10, 30, 1, 40, matLibrary.woodFloor, false);  
+            createBlock(0, 11.5, -27.5, 20, 1, 5, matLibrary.woodFloor, false);  
+            createBlock(0, 11.5, 7.5, 20, 1, 5, matLibrary.woodFloor, false);    
+            createBlock(-7.5, 11.5, -10, 5, 1, 30, matLibrary.woodFloor, false); 
+            createBlock(7.5, 11.5, -10, 5, 1, 30, matLibrary.woodFloor, false);  
+
+            // Grand Hall Railings (Correctly keeping path open)
+            createBlock(0, 13.5, 4.5, 10, 3, 1, matLibrary.trim);   
+            createBlock(-4.5, 13.5, -9.75, 1, 3, 29.5, matLibrary.trim); 
+            createBlock(4.5, 13.5, -9.75, 1, 3, 29.5, matLibrary.trim);  
+
+            // Grand Staircase (Visual only, player walks mathematically)
+            for(let i = 0; i < 10; i++) {
+                createBlock(0, 2.5 + i, -15.5 - i, 8, 1, 1, matLibrary.woodFloor, false);
+            }
+            
+            // Interior Walls
+            for (let yLevel of [7, 17]) {
+                for (let xPos of[-10, 10]) {
+                    createBlock(xPos, yLevel, 7, 1, 10, 6, matLibrary.houseInt);
+                    createBlock(xPos, yLevel, -8, 1, 10, 16, matLibrary.houseInt);
+                    createBlock(xPos, yLevel, -25, 1, 10, 10, matLibrary.houseInt);
+                }
+                createBlock(12.5, yLevel, -10, 5, 10, 1, matLibrary.houseInt);
+                createBlock(32.5, yLevel, -10, 15, 10, 1, matLibrary.houseInt);
+                createBlock(-28, yLevel, -10, 24, 10, 1, matLibrary.houseInt);
+                createBlock(-11, yLevel, -10, 2, 10, 1, matLibrary.houseInt);
+            }
+
+            // Inner Doors
+            new Door(10, 2, 0, -Math.PI/2, 0);            
+            new Door(10, 2, -20, -Math.PI/2, 0);          
+            new Door(-10, 2, 0, -Math.PI/2, -Math.PI);    
+            new Door(-10, 2, -20, -Math.PI/2, -Math.PI);  
+            new Door(-16, 2, -10, 0, Math.PI/2);          
+            new Door(10, 12, 0, -Math.PI/2, 0);           
+            new Door(10, 12, -20, -Math.PI/2, 0);         
+            new Door(-10, 12, 0, -Math.PI/2, -Math.PI);   
+            new Door(-10, 12, -20, -Math.PI/2, -Math.PI); 
+            new Door(-16, 12, -10, 0, Math.PI/2);         
+
+            // === PROPS & DETAILS ===
+            // Kitchen
+            createBlock(25, 4, -20, 8, 4, 4, matLibrary.marble); 
+            createBlock(38, 6, -15, 3, 8, 3, matLibrary.metal);  
+            createBlock(25, 4, -28, 16, 4, 2, matLibrary.marble); 
+            
+            // Living Room
+            createBlock(27, 1.55, -2, 16, 0.1, 14, matLibrary.fabric, false); 
+            createBlock(27, 3, -2, 8, 2, 3, matLibrary.fabric); 
+            createBlock(27, 4.5, -3, 8, 3, 1, matLibrary.fabric); 
+            createBlock(18, 3, -2, 3, 2, 8, matLibrary.fabric); 
+            
+            // TV
+            createBlock(38.5, 3, -2, 2, 3, 10, matLibrary.doorWood);
+            createBlock(38.4, 6.5, -2, 0.2, 5, 8, matLibrary.metal);
+            createBlock(38.3, 6.5, -2, 0.1, 4.5, 7.5, matLibrary.screen, false); 
+
+            // Library
+            createBlock(-25, 1.55, 0, 16, 0.1, 16, matLibrary.fabric, false); 
+            createBlock(-38, 7, 0, 2, 10, 16, matLibrary.doorWood); 
+            createBlock(-25, 3.5, 0, 6, 3, 4, matLibrary.doorWood); 
+
+            // Bedrooms
+            createBlock(-30, 3, -25, 6, 2, 8, matLibrary.fabric); 
+            createBlock(-30, 13, -5, 6, 2, 8, matLibrary.fabric); 
+
+            // Art & Decor (Z-Position fixed to avoid doors)
+            const createPainting = (x, y, z, rotY) => {
+                const grp = new THREE.Group();
+                grp.position.set(x, y, z); grp.rotation.y = rotY;
+                const frame = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+                frame.scale.set(0.1, 3, 4); grp.add(frame);
+                const art = new THREE.Mesh(geoLibrary.box, new THREE.MeshLambertMaterial({color: 0x5a3e2b}));
+                art.scale.set(0.12, 2.6, 3.6); grp.add(art);
+                scene.add(grp);
+            };
+            createPainting(-9.4, 7, -6, 0); 
+            createPainting(9.4, 7, -6, 0);  
+
+            // Grand Chandelier
+            const chPole = new THREE.Mesh(geoLibrary.cylinder, matLibrary.gold);
+            chPole.scale.set(0.1, 8, 0.1); chPole.position.set(0, 18, -10); scene.add(chPole);
+            const chRing = new THREE.Mesh(geoLibrary.cylinder, matLibrary.gold);
+            chRing.scale.set(2.5, 0.2, 2.5); chRing.position.set(0, 14, -10); scene.add(chRing);
+            const chLight = new THREE.PointLight(0xffddaa, 1.2, 60);
+            chLight.position.set(0, 13.5, -10); scene.add(chLight);
+
+            // Windows (Positions Fixed to perfectly align with empty wall gaps)
+            const winX = [-35, -25, -15, 15, 25, 35]; 
+            winX.forEach(x => {
+                createBlock(x, 6, 10, 4, 6, 1.2, matLibrary.window, false); 
+                createBlock(x - 2.75, 6, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
+                createBlock(x + 2.75, 6, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
+                
+                createBlock(x, 16, 10, 4, 6, 1.2, matLibrary.window, false);
+                createBlock(x - 2.75, 16, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
+                createBlock(x + 2.75, 16, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
+            });
+
+            // Optimized Lights (Reduced count, grouped logically for FPS)
+            const addLight = (x, y, z, dist) => {
+                const l = new THREE.PointLight(0xffffee, 0.6, dist);
+                l.position.set(x, y, z); scene.add(l);
+            };
+            addLight(0, 10.5, 11, 40);     // Porch
+            addLight(0, 10, -5, 50);       // Hall 1F
+            addLight(25, 10, -10, 60);     // Kitchen/Living Combined
+            addLight(-25, 10, -10, 60);    // Library/Guest Bed Combined
+            addLight(0, 20, -20, 50);      // Stairs
+            addLight(0, 20, -2, 40);       // Hall 2F Front
+        }
+
+        // === SYSTEM INITIALIZATION ===
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050811); 
+            scene.fog = new THREE.FogExp2(0x050811, 0.012);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(0, 5, 28); 
+            
+            // Optimization for Mobile: Lock PixelRatio to 1.0 to prevent severe lag.
+            renderer = new THREE.WebGLRenderer({ antialias: false }); 
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2)); 
+            document.body.appendChild(renderer.domElement);
+            clock = new THREE.Clock();
+
+            scene.add(new THREE.AmbientLight(0x222233, 0.7));
+            
+            const moonLight = new THREE.DirectionalLight(0xaaccff, 0.6);
+            moonLight.position.set(30, 50, 40);
+            moonLight.target.position.set(0, 0, 0);
+            scene.add(moonLight);
+            scene.add(moonLight.target);
+            
+            const flashLight = new THREE.SpotLight(0xffffff, 0.8, 50, Math.PI / 5, 0.4, 1);
+            flashLight.position.set(0, -0.5, 0);
+            flashLight.target.position.set(0, 0, -1);
+            camera.add(flashLight);
+            camera.add(flashLight.target);
+            scene.add(camera);
+
+            buildHouse();
+            setupControls();
+            setupInteractions();
+
+            animate();
+        }
+
+        // === CONTROLS & PHYSICS ===
+        function setupControls() {
+            if (isMobile) {
+                document.querySelectorAll('.joystick-zone').forEach(z => z.style.display = 'block');
+                document.getElementById('crosshair').style.width = '12px';
+                document.getElementById('crosshair').style.height = '12px';
+                
+                const leftZone = document.getElementById('left-zone');
+                const rightZone = document.getElementById('right-zone');
+                let moveTouchId = null, lookTouchId = null;
+                let moveStart = {x:0, y:0}, lookStart = {x:0, y:0};
+
+                leftZone.addEventListener('touchstart', e => {
+                    e.preventDefault();
+                    if(moveTouchId === null) {
+                        const t = e.changedTouches[0]; moveTouchId = t.identifier; moveStart = { x: t.clientX, y: t.clientY };
+                        const joy = document.getElementById('joystick-left'); joy.style.display = 'block'; joy.style.left = t.clientX + 'px'; joy.style.top = t.clientY + 'px';
+                        document.getElementById('joystick-knob-left').style.transform = `translate(-50%, -50%)`;
+                    }
+                });
+                leftZone.addEventListener('touchmove', e => {
+                    e.preventDefault();
+                    for(let t of e.changedTouches) {
+                        if(t.identifier === moveTouchId) {
+                            let dx = t.clientX - moveStart.x, dy = t.clientY - moveStart.y;
+                            const dist = Math.sqrt(dx*dx + dy*dy), max = 40;
+                            if(dist > max) { dx = (dx/dist)*max; dy = (dy/dist)*max; }
+                            document.getElementById('joystick-knob-left').style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                            moveDelta = { x: dx/max, y: dy/max };
+                        }
+                    }
+                });
+                const endMove = (e) => {
+                    for(let t of e.changedTouches) {
+                        if(t.identifier === moveTouchId) { moveTouchId = null; moveDelta = {x:0, y:0}; document.getElementById('joystick-left').style.display = 'none'; }
+                    }
+                };
+                leftZone.addEventListener('touchend', endMove); leftZone.addEventListener('touchcancel', endMove);
+
+                rightZone.addEventListener('touchstart', e => {
+                    e.preventDefault();
+                    if(lookTouchId === null) { const t = e.changedTouches[0]; lookTouchId = t.identifier; lookStart = { x: t.clientX, y: t.clientY }; }
+                });
+                rightZone.addEventListener('touchmove', e => {
+                    e.preventDefault();
+                    for(let t of e.changedTouches) {
+                        if(t.identifier === lookTouchId) {
+                            const dx = t.clientX - lookStart.x, dy = t.clientY - lookStart.y;
+                            lookStart = { x: t.clientX, y: t.clientY };
+                            yaw -= dx * 0.005; pitch -= dy * 0.005; pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                            camera.rotation.set(pitch, yaw, 0, 'YXZ');
+                        }
+                    }
+                });
+                const endLook = (e) => { for(let t of e.changedTouches) { if(t.identifier === lookTouchId) lookTouchId = null; } };
+                rightZone.addEventListener('touchend', endLook); rightZone.addEventListener('touchcancel', endLook);
+
+            } else {
+                document.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
+                document.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
+                
+                document.addEventListener('mousemove', e => {
+                    if (document.pointerLockElement === document.body) {
+                        yaw -= e.movementX * 0.002; pitch -= e.movementY * 0.002; pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                        camera.rotation.set(pitch, yaw, 0, 'YXZ');
+                    }
+                });
+                document.addEventListener('click', e => { if (document.pointerLockElement !== document.body && e.target.id !== 'start-btn') document.body.requestPointerLock(); });
+            }
+            
+            document.getElementById('start-btn').addEventListener('click', () => {
+                document.getElementById('start-screen').style.display = 'none';
+                if (!isMobile) document.body.requestPointerLock();
+            });
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        var raycaster = new THREE.Raycaster();
+        function setupInteractions() {
+            const interactBtn = document.getElementById('interact-btn');
+            
+            const attemptInteract = () => {
+                if(currentLookingAtDoor) {
+                    if (currentLookingAtDoor.state === 'closed') currentLookingAtDoor.open();
+                    else if (currentLookingAtDoor.state === 'open') currentLookingAtDoor.close();
+                    updateHoverUI();
+                }
+            };
+
+            const handleInteract = (e) => { if (e) { e.preventDefault(); e.stopPropagation(); } attemptInteract(); };
+
+            interactBtn.addEventListener('touchstart', handleInteract, {passive: false});
+            interactBtn.addEventListener('pointerdown', handleInteract);
+            interactBtn.addEventListener('click', handleInteract);
+
+            document.addEventListener('keydown', e => { if(e.key.toLowerCase() === 'e') attemptInteract(); });
+            document.addEventListener('mousedown', () => { if(!isMobile && document.pointerLockElement === document.body) attemptInteract(); });
+        }
+
+        function checkInteractables() {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObjects(interactables);
+            
+            let foundDoor = null;
+            for (let i = 0; i < intersects.length; i++) {
+                if (intersects[i].distance >= 12) break;
+                if (intersects[i].object.userData.isDoor) { foundDoor = intersects[i].object.userData.doorObj; break; }
+            }
+            currentLookingAtDoor = foundDoor; updateHoverUI();
+        }
+
+        function updateHoverUI() {
+            const interactBtn = document.getElementById('interact-btn');
+            const interactText = document.getElementById('interact-text');
+
+            if (currentLookingAtDoor && (currentLookingAtDoor.state === 'closed' || currentLookingAtDoor.state === 'open')) {
+                const actionWord = currentLookingAtDoor.state === 'closed' ? 'OPEN' : 'CLOSE';
+                interactBtn.innerText = actionWord; interactText.innerText = `[E] ${actionWord}`;
+
+                const handlePos = new THREE.Vector3();
+                currentLookingAtDoor.handle.getWorldPosition(handlePos);
+                handlePos.project(camera); 
+
+                if (handlePos.z > 1) { interactBtn.style.display = 'none'; interactText.style.display = 'none'; return; }
+
+                const x = (handlePos.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (handlePos.y * -0.5 + 0.5) * window.innerHeight;
+
+                if (isMobile) {
+                    interactBtn.style.display = 'flex'; interactBtn.style.left = `${x}px`; interactBtn.style.top = `${y}px`;
+                } else {
+                    interactText.style.display = 'block'; interactText.style.left = `${x}px`; interactText.style.top = `${y}px`;
+                }
+            } else {
+                interactBtn.style.display = 'none'; interactText.style.display = 'none';
+            }
+        }
+
+        function applyCollisions(newPos) {
+            let pR = 0.8; 
+            const checkAndSlide = (c) => {
+                if (newPos.y + 1 < c.minY || newPos.y - 4.9 > c.maxY) return; 
+
+                if (newPos.x + pR > c.minX && newPos.x - pR < c.maxX &&
+                    newPos.z + pR > c.minZ && newPos.z - pR < c.maxZ) {
+                    
+                    let overlapLeft = (newPos.x + pR) - c.minX;
+                    let overlapRight = c.maxX - (newPos.x - pR);
+                    let overlapTop = (newPos.z + pR) - c.minZ;
+                    let overlapBottom = c.maxZ - (newPos.z - pR);
+
+                    let minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                    if (minOverlap === overlapLeft) newPos.x = c.minX - pR;
+                    else if (minOverlap === overlapRight) newPos.x = c.maxX + pR;
+                    else if (minOverlap === overlapTop) newPos.z = c.minZ - pR;
+                    else if (minOverlap === overlapBottom) newPos.z = c.maxZ + pR;
+                }
+            };
+            for (let c of colliders) checkAndSlide(c);
+            for (let d of doors) checkAndSlide(d.getCollider());
+            return newPos;
+        }
+
+        function calculateFloorY(camX, camZ, currentCamY) {
+            if (camZ > 10.5) {
+                if (camZ <= 14.5 && Math.abs(camX) <= 6) return 2;
+                if (camZ <= 17.5 && Math.abs(camX) <= 6) return ((17.5 - camZ) / 3.0) * 2.0;
+                return 0;
+            }
+            if (Math.abs(camX) <= 4 && camZ <= -15 && camZ >= -25) {
+                return 2 + ((-15 - camZ) / 10.0) * 10.0;
+            }
+            let over2F = false;
+            if (Math.abs(camX) >= 10) over2F = true; 
+            if (Math.abs(camX) <= 10 && camZ <= -25) over2F = true; 
+            if (Math.abs(camX) <= 10 && camZ >= 5 && camZ <= 10) over2F = true; 
+            if (Math.abs(camX) >= 4.5 && Math.abs(camX) <= 10 && camZ <= 5 && camZ >= -25) over2F = true; 
+
+            if (currentCamY > 8 && over2F) return 12;
+            return 2;
+        }
+
+        // === GAME LOOP ===
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1); 
+            
+            let moveX = 0, moveZ = 0;
+            if (isMobile) {
+                moveX = moveDelta.x; moveZ = moveDelta.y;
+            } else {
+                if(keys.w) moveZ -= 1; if(keys.s) moveZ += 1;
+                if(keys.a) moveX -= 1; if(keys.d) moveX += 1;
+            }
+            
+            if (moveX !== 0 || moveZ !== 0) {
+                const length = Math.sqrt(moveX*moveX + moveZ*moveZ);
+                moveX /= length; moveZ /= length;
+                const speed = 15 * delta; 
+                
+                const dir = new THREE.Vector3(moveX, 0, moveZ);
+                dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+                
+                const newPos = camera.position.clone();
+                newPos.x += dir.x * speed;
+                newPos.z += dir.z * speed;
+                
+                const collidedPos = applyCollisions(newPos);
+                camera.position.copy(collidedPos);
+
+                walkTime += speed * 0.5;
+            } 
+
+            let targetFloorY = calculateFloorY(camera.position.x, camera.position.z, camera.position.y);
+            let targetCameraY = targetFloorY + 5; 
+            if (moveX !== 0 || moveZ !== 0) targetCameraY += Math.sin(walkTime) * 0.2; 
+            
+            camera.position.y += (targetCameraY - camera.position.y) * 0.15;
+
+            // Optimization: Only check interactions occasionally to save CPU cycles
+            frameCount++;
+            if (frameCount % 4 === 0) checkInteractables();
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+<script src="tactical-patch.js"></script>
+</body>
+</html>
