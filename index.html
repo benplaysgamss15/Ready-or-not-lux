@@ -102,7 +102,6 @@
 
     <script>
         // === GAME GLOBALS ===
-        // Using 'var' exposes these to the Window object so your next Monkey Patch script can hook into them!
         var scene, camera, renderer, clock;
         var interactables = [];
         var colliders = [];
@@ -126,20 +125,26 @@
         };
 
         var matLibrary = {
-            grass: new THREE.MeshLambertMaterial({ color: 0x0f1c0f }),
-            pathway: new THREE.MeshLambertMaterial({ color: 0x555555 }),
-            brick: new THREE.MeshLambertMaterial({ color: 0x4a2a20 }),    
-            houseInt: new THREE.MeshLambertMaterial({ color: 0xe6e4df }), 
-            woodFloor: new THREE.MeshLambertMaterial({ color: 0x3d2817 }), 
-            roof: new THREE.MeshLambertMaterial({ color: 0x111112 }),     
-            trim: new THREE.MeshLambertMaterial({ color: 0xffffff }),     
-            doorWood: new THREE.MeshLambertMaterial({ color: 0x2b190e }), 
-            window: new THREE.MeshBasicMaterial({ color: 0xffe6a3 }),     
-            fabric: new THREE.MeshLambertMaterial({ color: 0x243442 }),
-            marble: new THREE.MeshLambertMaterial({ color: 0xcccccc }),
-            metal: new THREE.MeshLambertMaterial({ color: 0x666666 }),
-            screen: new THREE.MeshBasicMaterial({ color: 0x4466ff }),     
-            gold: new THREE.MeshLambertMaterial({ color: 0xd4af37 })
+            grass: new THREE.MeshStandardMaterial({ color: 0x111c11, roughness: 0.9, metalness: 0.05 }),
+            pathway: new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8, metalness: 0.1 }),
+            brick: new THREE.MeshStandardMaterial({ color: 0x3d231a, roughness: 0.85, metalness: 0.05 }),    
+            houseInt: new THREE.MeshStandardMaterial({ color: 0xdedcd8, roughness: 0.7, metalness: 0.05 }), 
+            woodFloor: new THREE.MeshStandardMaterial({ color: 0x24170d, roughness: 0.45, metalness: 0.1 }), 
+            roof: new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.9, metalness: 0.1 }),     
+            trim: new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5, metalness: 0.1 }),     
+            doorWood: new THREE.MeshStandardMaterial({ color: 0x1d1009, roughness: 0.65, metalness: 0.1 }), 
+            window: new THREE.MeshStandardMaterial({ color: 0xffe6a3, emissive: 0xffaa00, emissiveIntensity: 0.25, roughness: 0.1, metalness: 0.9 }),     
+            fabric: new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.85, metalness: 0.05 }),
+            marble: new THREE.MeshStandardMaterial({ color: 0xdfdfdf, roughness: 0.15, metalness: 0.1 }),
+            metal: new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.35, metalness: 0.75 }),
+            screen: new THREE.MeshStandardMaterial({ color: 0x071133, emissive: 0x1122aa, emissiveIntensity: 0.4, roughness: 0.2, metalness: 0.8 }),     
+            gold: new THREE.MeshStandardMaterial({ color: 0xcca533, roughness: 0.25, metalness: 0.85 }),
+            
+            // Decorative add-on materials
+            foliage: new THREE.MeshStandardMaterial({ color: 0x112b11, roughness: 0.95 }),
+            fire: new THREE.MeshStandardMaterial({ color: 0xff7711, emissive: 0xff3300, emissiveIntensity: 1.2, roughness: 0.5 }),
+            candle: new THREE.MeshStandardMaterial({ color: 0xfff9e6, roughness: 0.6 }),
+            paintingBorder: new THREE.MeshStandardMaterial({ color: 0x0c0603, roughness: 0.45, metalness: 0.3 })
         };
 
         // === CLASSES & GENERATION ===
@@ -159,6 +164,20 @@
                 this.mesh.scale.set(this.width, 8, 0.4); 
                 this.mesh.position.set(2, 4, 0); 
                 this.group.add(this.mesh);
+
+                // Add 4 decorative dimensional inset panel moldings on both sides of the door
+                const addPanelMesh = (px, py, pz, sx, sy, sz) => {
+                    const p = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+                    p.scale.set(sx, sy, sz);
+                    p.position.set(px, py, pz);
+                    this.group.add(p);
+                };
+                for (let side of [-0.22, 0.22]) {
+                    addPanelMesh(1.0, 6.0, side, 1.2, 2.6, 0.05);
+                    addPanelMesh(3.0, 6.0, side, 1.2, 2.6, 0.05);
+                    addPanelMesh(1.0, 2.4, side, 1.2, 2.6, 0.05);
+                    addPanelMesh(3.0, 2.4, side, 1.2, 2.6, 0.05);
+                }
 
                 this.handle = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
                 this.handle.scale.set(0.1, 0.5, 0.1); 
@@ -239,6 +258,23 @@
             scene.add(ground);
             createBlock(0, 0.1, 25, 6, 0.2, 30, matLibrary.pathway, false);
 
+            // Pathway borders
+            createBlock(-3.1, 0.2, 25, 0.2, 0.3, 30, matLibrary.trim, false);
+            createBlock(3.1, 0.2, 25, 0.2, 0.3, 30, matLibrary.trim, false);
+
+            // Visual potted hedges along the path
+            const addPottedPlant = (x, y, z) => {
+                createBlock(x, y + 0.4, z, 0.8, 0.8, 0.8, matLibrary.brick, false);
+                const plant = new THREE.Mesh(geoLibrary.cylinder, matLibrary.foliage);
+                plant.position.set(x, y + 1.2, z);
+                plant.scale.set(0.6, 1.2, 0.6);
+                scene.add(plant);
+            };
+            addPottedPlant(-4.5, 0, 20);
+            addPottedPlant(4.5, 0, 20);
+            addPottedPlant(-4.5, 0, 30);
+            addPottedPlant(4.5, 0, 30);
+
             // Foundation
             createBlock(0, 0.9, -10, 80, 1.8, 40, matLibrary.brick, false);
             createBlock(0, 0.9, 12, 12, 1.8, 4, matLibrary.brick, false);
@@ -260,6 +296,11 @@
             createBlock(40, 12, -10, 1, 20, 40, matLibrary.brick);
             createBlock(0, 12, -30, 80, 20, 1, matLibrary.brick);
 
+            // Facade visual trims
+            createBlock(0, 21.0, 10.2, 80.2, 0.8, 1.4, matLibrary.trim, false);
+            createBlock(-40.2, 11.0, -10, 1.2, 0.6, 40.2, matLibrary.trim, false);
+            createBlock(40.2, 11.0, -10, 1.2, 0.6, 40.2, matLibrary.trim, false);
+
             // Roof
             createBlock(0, 22.5, -10, 82, 1, 42, matLibrary.roof, false);
             const topRoof = new THREE.Mesh(geoLibrary.cone, matLibrary.roof);
@@ -268,16 +309,22 @@
             topRoof.position.set(0, 30, -10);
             scene.add(topRoof);
 
-            // Portico
+            // Portico Columns with capital & base detailing
             createBlock(-5, 6.5, 13, 0.8, 9, 0.8, matLibrary.trim);
             createBlock(5, 6.5, 13, 0.8, 9, 0.8, matLibrary.trim);
+            createBlock(-5, 2.4, 13, 1.2, 0.8, 1.2, matLibrary.trim, false); 
+            createBlock(5, 2.4, 13, 1.2, 0.8, 1.2, matLibrary.trim, false);
+            createBlock(-5, 10.6, 13, 1.2, 0.8, 1.2, matLibrary.trim, false); 
+            createBlock(5, 10.6, 13, 1.2, 0.8, 1.2, matLibrary.trim, false);
             createBlock(0, 11.5, 12.5, 13, 1, 5, matLibrary.trim, false);
 
-            // Main Door
-            new Door(-2, 2, 10, 0, Math.PI/2); 
+            // Main Door Frame
             createBlock(-2.1, 6, 10, 0.2, 8, 0.8, matLibrary.trim); 
             createBlock(2.1, 6, 10, 0.2, 8, 0.8, matLibrary.trim); 
             createBlock(0, 10.1, 10, 4.4, 0.2, 0.8, matLibrary.trim); 
+
+            // Main Door Instance
+            new Door(-2, 2, 10, 0, Math.PI/2); 
 
             // Floor Slabs
             createBlock(0, 1.5, -10, 80, 1, 40, matLibrary.woodFloor, false); // 1F Base
@@ -290,15 +337,34 @@
             createBlock(-7.5, 11.5, -10, 5, 1, 30, matLibrary.woodFloor, false); 
             createBlock(7.5, 11.5, -10, 5, 1, 30, matLibrary.woodFloor, false);  
 
-            // Grand Hall Railings (Correctly keeping path open)
+            // Grand Hall Railings (with custom wood top-cap)
             createBlock(0, 13.5, 4.5, 10, 3, 1, matLibrary.trim);   
             createBlock(-4.5, 13.5, -9.75, 1, 3, 29.5, matLibrary.trim); 
             createBlock(4.5, 13.5, -9.75, 1, 3, 29.5, matLibrary.trim);  
+            createBlock(0, 15.1, 4.5, 10.2, 0.2, 1.2, matLibrary.doorWood, false); 
+            createBlock(-4.5, 15.1, -9.75, 1.2, 0.2, 29.7, matLibrary.doorWood, false);
+            createBlock(4.5, 15.1, -9.75, 1.2, 0.2, 29.7, matLibrary.doorWood, false);
 
-            // Grand Staircase (Visual only, player walks mathematically)
+            // Grand Staircase Spindles & Railing detail
             for(let i = 0; i < 10; i++) {
                 createBlock(0, 2.5 + i, -15.5 - i, 8, 1, 1, matLibrary.woodFloor, false);
+                
+                // Fine baluster spindles
+                createBlock(-4.1, 3.5 + i, -15.5 - i, 0.15, 3.0, 0.15, matLibrary.trim, false);
+                createBlock(4.1, 3.5 + i, -15.5 - i, 0.15, 3.0, 0.15, matLibrary.trim, false);
             }
+            // Slanted banisters flanking the grand stairs
+            const handrailL = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+            handrailL.position.set(-4.1, 8.0, -20.0);
+            handrailL.scale.set(0.25, 0.15, 14.14);
+            handrailL.rotation.x = Math.PI / 4;
+            scene.add(handrailL);
+            
+            const handrailR = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+            handrailR.position.set(4.1, 8.0, -20.0);
+            handrailR.scale.set(0.25, 0.15, 14.14);
+            handrailR.rotation.x = Math.PI / 4;
+            scene.add(handrailR);
             
             // Interior Walls
             for (let yLevel of [7, 17]) {
@@ -331,11 +397,44 @@
             createBlock(38, 6, -15, 3, 8, 3, matLibrary.metal);  
             createBlock(25, 4, -28, 16, 4, 2, matLibrary.marble); 
             
+            // Kitchen Cabinet detail overlays
+            for (let xOff = -3.5; xOff <= 3.5; xOff += 1.85) {
+                createBlock(25 + xOff, 3.5, -17.9, 1.2, 2.5, 0.1, matLibrary.doorWood, false);
+                createBlock(25 + xOff, 4.3, -17.84, 0.15, 0.15, 0.1, matLibrary.gold, false); // Cabinet handles
+            }
+            for (let xOff = -7.0; xOff <= 7.0; xOff += 2.25) {
+                createBlock(25 + xOff, 3.5, -26.9, 1.4, 2.5, 0.1, matLibrary.doorWood, false);
+                createBlock(25 + xOff, 4.3, -26.84, 0.15, 0.15, 0.1, matLibrary.gold, false);
+            }
+            // Faucet
+            const f1 = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
+            f1.position.set(25, 6.2, -27.5); f1.scale.set(0.1, 0.8, 0.1); scene.add(f1);
+            const f2 = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
+            f2.position.set(25, 6.6, -27.3); f2.scale.set(0.1, 0.4, 0.1); f2.rotation.x = Math.PI/2; scene.add(f2);
+            
             // Living Room
             createBlock(27, 1.55, -2, 16, 0.1, 14, matLibrary.fabric, false); 
             createBlock(27, 3, -2, 8, 2, 3, matLibrary.fabric); 
             createBlock(27, 4.5, -3, 8, 3, 1, matLibrary.fabric); 
             createBlock(18, 3, -2, 3, 2, 8, matLibrary.fabric); 
+            
+            // Cushions & Accent Pillows
+            createBlock(24.5, 3.8, -3, 1.1, 1.1, 0.35, matLibrary.trim, false);
+            createBlock(29.5, 3.8, -3, 1.1, 1.1, 0.35, matLibrary.trim, false);
+            
+            // Coffee Table
+            createBlock(27, 2.3, -7, 6, 0.2, 4, matLibrary.marble, false);
+            createBlock(24.2, 1.9, -8.8, 0.2, 1.0, 0.2, matLibrary.gold, false);
+            createBlock(29.8, 1.9, -8.8, 0.2, 1.0, 0.2, matLibrary.gold, false);
+            createBlock(24.2, 1.9, -5.2, 0.2, 1.0, 0.2, matLibrary.gold, false);
+            createBlock(29.8, 1.9, -5.2, 0.2, 1.0, 0.2, matLibrary.gold, false);
+
+            // Fireplace visual additions
+            createBlock(38, 4, -9, 2, 6, 4, matLibrary.marble, false);
+            createBlock(37.9, 3, -9, 2.1, 4, 2.5, matLibrary.roof, false); // Dark hearth backdrop
+            createBlock(37.8, 1.7, -9, 1.5, 0.3, 1.8, matLibrary.fire, false); // Burning wood glow
+            const fireLight = new THREE.PointLight(0xff5500, 1.6, 12);
+            fireLight.position.set(36, 3, -9); scene.add(fireLight);
             
             // TV
             createBlock(38.5, 3, -2, 2, 3, 10, matLibrary.doorWood);
@@ -347,17 +446,43 @@
             createBlock(-38, 7, 0, 2, 10, 16, matLibrary.doorWood); 
             createBlock(-25, 3.5, 0, 6, 3, 4, matLibrary.doorWood); 
 
+            // Procedural Bookshelves with dozens of color-randomized books
+            for (let h = 2.5; h <= 11.5; h += 2.0) {
+                createBlock(-37.0, h, 0, 1.8, 0.15, 15.8, matLibrary.doorWood, false); // Wood panel shelves
+                for (let zOff = -7.5; zOff <= 7.5; zOff += 0.35) {
+                    if (Math.random() > 0.15) {
+                        const bookColors = [0x7a2f22, 0x1c3a27, 0x243e54, 0x9c7c38, 0x3d2b1f, 0x4d5d53];
+                        const col = bookColors[Math.floor(Math.random() * bookColors.length)];
+                        const bookMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 });
+                        const bHeight = 0.8 + Math.random() * 0.4;
+                        const bDepth = 1.0 + Math.random() * 0.3;
+                        createBlock(-36.8, h + bHeight/2, zOff, bDepth, bHeight, 0.25, bookMat, false);
+                    }
+                }
+            }
+
             // Bedrooms
             createBlock(-30, 3, -25, 6, 2, 8, matLibrary.fabric); 
             createBlock(-30, 13, -5, 6, 2, 8, matLibrary.fabric); 
+            
+            // Bedroom 1F details
+            createBlock(-33.1, 4.5, -25, 0.2, 4.0, 8.0, matLibrary.doorWood, false); // Headboard
+            createBlock(-32.0, 4.2, -25, 1.2, 0.4, 6.0, matLibrary.trim, false); // White pillows
+            createBlock(-30, 2.5, -20.0, 2.0, 2.0, 2.0, matLibrary.doorWood, false); // Nightstand
+            createBlock(-30, 3.7, -20.0, 0.4, 0.4, 0.4, matLibrary.gold, false); // Lamp base
+            createBlock(-30, 4.2, -20.0, 0.8, 0.8, 0.8, matLibrary.trim, false); // Lamp shade
+            
+            // Bedroom 2F details
+            createBlock(-33.1, 14.5, -5, 0.2, 4.0, 8.0, matLibrary.doorWood, false); 
+            createBlock(-32.0, 14.2, -5, 1.2, 0.4, 6.0, matLibrary.trim, false); 
 
             // Art & Decor (Z-Position fixed to avoid doors)
             const createPainting = (x, y, z, rotY) => {
                 const grp = new THREE.Group();
                 grp.position.set(x, y, z); grp.rotation.y = rotY;
-                const frame = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
+                const frame = new THREE.Mesh(geoLibrary.box, matLibrary.paintingBorder);
                 frame.scale.set(0.1, 3, 4); grp.add(frame);
-                const art = new THREE.Mesh(geoLibrary.box, new THREE.MeshLambertMaterial({color: 0x5a3e2b}));
+                const art = new THREE.Mesh(geoLibrary.box, new THREE.MeshStandardMaterial({color: 0x5a3e2b, roughness: 0.9}));
                 art.scale.set(0.12, 2.6, 3.6); grp.add(art);
                 scene.add(grp);
             };
@@ -369,7 +494,17 @@
             chPole.scale.set(0.1, 8, 0.1); chPole.position.set(0, 18, -10); scene.add(chPole);
             const chRing = new THREE.Mesh(geoLibrary.cylinder, matLibrary.gold);
             chRing.scale.set(2.5, 0.2, 2.5); chRing.position.set(0, 14, -10); scene.add(chRing);
-            const chLight = new THREE.PointLight(0xffddaa, 1.2, 60);
+            
+            // 6 lit candle stands along the chandelier frame
+            for (let i = 0; i < 6; i++) {
+                let angle = (i / 6) * Math.PI * 2;
+                let cx = Math.cos(angle) * 2.5;
+                let cz = -10 + Math.sin(angle) * 2.5;
+                createBlock(cx, 14.4, cz, 0.15, 0.8, 0.15, matLibrary.candle, false);
+                createBlock(cx, 14.9, cz, 0.1, 0.2, 0.1, matLibrary.fire, false);
+            }
+            
+            const chLight = new THREE.PointLight(0xffddaa, 1.5, 60);
             chLight.position.set(0, 13.5, -10); scene.add(chLight);
 
             // Windows (Positions Fixed to perfectly align with empty wall gaps)
@@ -379,9 +514,21 @@
                 createBlock(x - 2.75, 6, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
                 createBlock(x + 2.75, 6, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
                 
+                // Pane Grilles 1F
+                createBlock(x, 6, 10.6, 0.15, 6, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 6, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 4.5, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 7.5, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
+                
                 createBlock(x, 16, 10, 4, 6, 1.2, matLibrary.window, false);
                 createBlock(x - 2.75, 16, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
                 createBlock(x + 2.75, 16, 10, 1.5, 6, 1.3, matLibrary.doorWood, false);
+                
+                // Pane Grilles 2F
+                createBlock(x, 16, 10.6, 0.15, 6, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 16, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 14.5, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
+                createBlock(x, 17.5, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
             });
 
             // Optimized Lights (Reduced count, grouped logically for FPS)
@@ -406,7 +553,6 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 150);
             camera.position.set(0, 5, 28); 
             
-            // Optimization for Mobile: Lock PixelRatio to 1.0 to prevent severe lag.
             renderer = new THREE.WebGLRenderer({ antialias: false }); 
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2)); 
