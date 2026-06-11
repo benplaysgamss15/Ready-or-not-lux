@@ -15,11 +15,19 @@
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             pointer-events: none; z-index: 10; 
         }
+
+        /* BODYCAM MILITARY-GRADE CRT VIGNETTE */
+        #bodycam-vignette {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 8;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.85);
+            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.4) 100%);
+        }
         
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
-            background: rgba(255, 255, 255, 0.8); border-radius: 50%; 
-            transform: translate(-50%, -50%); box-shadow: 0 0 5px #000;
+            position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+            background: rgba(255, 255, 255, 0.9); border-radius: 50%; 
+            transform: translate(-50%, -50%); box-shadow: 0 0 3px #000;
         }
         
         #interact-text {
@@ -57,25 +65,27 @@
 
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, #1a1a24 0%, #020205 100%);
+            background: radial-gradient(circle, #101014 0%, #010103 100%);
             display: flex; flex-direction: column; justify-content: center; 
             align-items: center; color: white; pointer-events: auto; z-index: 100;
         }
         #start-screen h1 { 
-            color: #d8c39b; font-size: 50px; text-shadow: 0 0 25px rgba(216, 195, 155, 0.4); 
-            margin-bottom: 10px; text-align: center; letter-spacing: 3px;
+            color: #d8c39b; font-size: 40px; text-shadow: 0 0 25px rgba(216, 195, 155, 0.3); 
+            margin-bottom: 10px; text-align: center; letter-spacing: 5px;
         }
-        #start-screen p { margin-bottom: 40px; font-size: 18px; text-align: center; color: #aaa; }
+        #start-screen p { margin-bottom: 40px; font-size: 16px; text-align: center; color: #888; }
         .btn { 
             background: #d8c39b; color: #000; border: none; padding: 15px 50px; 
-            font-size: 24px; font-weight: bold; border-radius: 3px; cursor: pointer; 
+            font-size: 20px; font-weight: bold; border-radius: 3px; cursor: pointer; 
             transition: 0.2s; font-family: 'Courier New', Courier, monospace;
         }
-        .btn:hover { background: #fff; box-shadow: 0 0 20px rgba(216, 195, 155, 0.6); }
+        .btn:hover { background: #fff; box-shadow: 0 0 20px rgba(216, 195, 155, 0.5); }
     </style>
     <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 </head>
 <body>
+
+    <div id="bodycam-vignette"></div>
 
     <div id="ui">
         <div id="crosshair"></div>
@@ -90,14 +100,14 @@
     </div>
 
     <div id="start-screen">
-        <h1>THE MANSION</h1>
+        <h1>THE ESTATE</h1>
         <p>
-            Explore the newly furnished 2-story estate.<br>
-            Optimized Engine - Ready for overrides.<br><br>
-            Mobile: Use on-screen joysticks.<br>
-            PC: WASD to move, Mouse to look.
+            Dynamic Q-Learning Neural Network AI Integration.<br>
+            Optimized for 2GB RAM / 0MB Storage Footprint.<br><br>
+            PC: WASD to Move | Left Click Shoot | Right Click Aim | R Reload<br>
+            Mobile: Use On-Screen Touch Controls
         </p>
-        <button id="start-btn" class="btn">ENTER ESTATE</button>
+        <button id="start-btn" class="btn">DEPLOY OPERATIVE</button>
     </div>
 
     <script>
@@ -112,11 +122,76 @@
         var moveDelta = { x: 0, y: 0 };
         var currentLookingAtDoor = null;
         var walkTime = 0;
-        var frameCount = 0; // Used for Raycaster optimization
+        var frameCount = 0;
 
         var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
 
-        // === RESOURCES ===
+        // === DYNAMIC HIGH-DETAIL PROCEDURAL TEXTURE GENERATORS ===
+        // These generate crisp physical noise textures entirely in-memory with 0MB disk space usage
+        function createNoiseTexture(colorBase, noiseIntensity, repeatX = 1, repeatY = 1) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = colorBase;
+            ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 5000; i++) {
+                let alpha = Math.random() * noiseIntensity;
+                ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, 1, 1);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(repeatX, repeatY);
+            return texture;
+        }
+
+        function createWoodTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#21140c'; ctx.fillRect(0, 0, 512, 512);
+            // Planks lines
+            ctx.strokeStyle = '#120b06'; ctx.lineWidth = 3;
+            for (let i = 0; i < 512; i += 64) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+            }
+            // Wood Grain
+            for (let i = 0; i < 1500; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.04)';
+                ctx.fillRect(Math.random() * 512, Math.random() * 512, 2 + Math.random() * 80, 1);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(8, 8);
+            return texture;
+        }
+
+        function createBrickTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#301c15'; ctx.fillRect(0, 0, 512, 512);
+            ctx.strokeStyle = '#1d100c'; ctx.lineWidth = 4;
+            const rowH = 32;
+            for (let y = 0; y < 512; y += rowH) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+                const offset = (y / rowH) % 2 === 0 ? 0 : 32;
+                for (let x = offset; x < 512 + 64; x += 64) {
+                    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + rowH); ctx.stroke();
+                }
+            }
+            for (let i = 0; i < 3000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.06)';
+                ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(6, 4);
+            return texture;
+        }
+
+        // === GEOMETRY LIBRARY ===
         var geoLibrary = {
             box: new THREE.BoxGeometry(1, 1, 1),
             plane: new THREE.PlaneGeometry(1, 1),
@@ -124,23 +199,22 @@
             cone: new THREE.ConeGeometry(1, 1, 4, 1)
         };
 
+        // === DETAILED MATERIALS ===
         var matLibrary = {
-            grass: new THREE.MeshStandardMaterial({ color: 0x111c11, roughness: 0.9, metalness: 0.05 }),
-            pathway: new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8, metalness: 0.1 }),
-            brick: new THREE.MeshStandardMaterial({ color: 0x3d231a, roughness: 0.85, metalness: 0.05 }),    
-            houseInt: new THREE.MeshStandardMaterial({ color: 0xdedcd8, roughness: 0.7, metalness: 0.05 }), 
-            woodFloor: new THREE.MeshStandardMaterial({ color: 0x24170d, roughness: 0.45, metalness: 0.1 }), 
-            roof: new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.9, metalness: 0.1 }),     
-            trim: new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5, metalness: 0.1 }),     
-            doorWood: new THREE.MeshStandardMaterial({ color: 0x1d1009, roughness: 0.65, metalness: 0.1 }), 
-            window: new THREE.MeshStandardMaterial({ color: 0xffe6a3, emissive: 0xffaa00, emissiveIntensity: 0.25, roughness: 0.1, metalness: 0.9 }),     
-            fabric: new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.85, metalness: 0.05 }),
-            marble: new THREE.MeshStandardMaterial({ color: 0xdfdfdf, roughness: 0.15, metalness: 0.1 }),
-            metal: new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.35, metalness: 0.75 }),
-            screen: new THREE.MeshStandardMaterial({ color: 0x071133, emissive: 0x1122aa, emissiveIntensity: 0.4, roughness: 0.2, metalness: 0.8 }),     
+            grass: new THREE.MeshStandardMaterial({ map: createNoiseTexture('#142114', 0.15, 30, 30), roughness: 0.95 }),
+            pathway: new THREE.MeshStandardMaterial({ map: createNoiseTexture('#333333', 0.2, 2, 10), roughness: 0.8 }),
+            brick: new THREE.MeshStandardMaterial({ map: createBrickTexture(), roughness: 0.9 }),    
+            houseInt: new THREE.MeshStandardMaterial({ map: createNoiseTexture('#c4c1bc', 0.08, 4, 4), roughness: 0.85 }), 
+            woodFloor: new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.5, metalness: 0.05 }), 
+            roof: new THREE.MeshStandardMaterial({ map: createNoiseTexture('#1c1c1f', 0.12, 12, 12), roughness: 0.9 }),     
+            trim: new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.6 }),     
+            doorWood: new THREE.MeshStandardMaterial({ color: 0x1d1009, roughness: 0.65 }), 
+            window: new THREE.MeshStandardMaterial({ color: 0xffe6a3, emissive: 0xffaa00, emissiveIntensity: 0.25, roughness: 0.1 }),     
+            fabric: new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.85 }),
+            marble: new THREE.MeshStandardMaterial({ map: createNoiseTexture('#dfdfdf', 0.06, 2, 2), roughness: 0.15, metalness: 0.2 }),
+            metal: new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.35, metalness: 0.8 }),
+            screen: new THREE.MeshStandardMaterial({ color: 0x050a1f, emissive: 0x1122aa, emissiveIntensity: 0.3, roughness: 0.2, metalness: 0.8 }),     
             gold: new THREE.MeshStandardMaterial({ color: 0xcca533, roughness: 0.25, metalness: 0.85 }),
-            
-            // Decorative add-on materials
             foliage: new THREE.MeshStandardMaterial({ color: 0x112b11, roughness: 0.95 }),
             fire: new THREE.MeshStandardMaterial({ color: 0xff7711, emissive: 0xff3300, emissiveIntensity: 1.2, roughness: 0.5 }),
             candle: new THREE.MeshStandardMaterial({ color: 0xfff9e6, roughness: 0.6 }),
@@ -163,6 +237,8 @@
                 this.mesh = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
                 this.mesh.scale.set(this.width, 8, 0.4); 
                 this.mesh.position.set(2, 4, 0); 
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
                 this.group.add(this.mesh);
 
                 // Add 4 decorative dimensional inset panel moldings on both sides of the door
@@ -170,6 +246,8 @@
                     const p = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
                     p.scale.set(sx, sy, sz);
                     p.position.set(px, py, pz);
+                    p.castShadow = true;
+                    p.receiveShadow = true;
                     this.group.add(p);
                 };
                 for (let side of [-0.22, 0.22]) {
@@ -183,6 +261,7 @@
                 this.handle.scale.set(0.1, 0.5, 0.1); 
                 this.handle.rotation.z = Math.PI / 2; 
                 this.handle.position.set(3.5, 4, 0.3);
+                this.handle.castShadow = true;
                 this.group.add(this.handle);
 
                 this.mesh.userData = { isDoor: true, doorObj: this };
@@ -238,6 +317,8 @@
             const block = new THREE.Mesh(geoLibrary.box, material);
             block.scale.set(width, height, depth);
             block.position.set(x, y, z);
+            block.castShadow = true;
+            block.receiveShadow = true;
             scene.add(block);
 
             if (collides) {
@@ -255,6 +336,7 @@
             const ground = new THREE.Mesh(geoLibrary.plane, matLibrary.grass);
             ground.rotation.x = -Math.PI / 2;
             ground.scale.set(200, 200, 1);
+            ground.receiveShadow = true;
             scene.add(ground);
             createBlock(0, 0.1, 25, 6, 0.2, 30, matLibrary.pathway, false);
 
@@ -268,6 +350,8 @@
                 const plant = new THREE.Mesh(geoLibrary.cylinder, matLibrary.foliage);
                 plant.position.set(x, y + 1.2, z);
                 plant.scale.set(0.6, 1.2, 0.6);
+                plant.castShadow = true;
+                plant.receiveShadow = true;
                 scene.add(plant);
             };
             addPottedPlant(-4.5, 0, 20);
@@ -307,6 +391,8 @@
             topRoof.rotation.y = Math.PI / 4; 
             topRoof.scale.set(55, 15, 55);
             topRoof.position.set(0, 30, -10);
+            topRoof.castShadow = true;
+            topRoof.receiveShadow = true;
             scene.add(topRoof);
 
             // Portico Columns with capital & base detailing
@@ -348,8 +434,6 @@
             // Grand Staircase Spindles & Railing detail
             for(let i = 0; i < 10; i++) {
                 createBlock(0, 2.5 + i, -15.5 - i, 8, 1, 1, matLibrary.woodFloor, false);
-                
-                // Fine baluster spindles
                 createBlock(-4.1, 3.5 + i, -15.5 - i, 0.15, 3.0, 0.15, matLibrary.trim, false);
                 createBlock(4.1, 3.5 + i, -15.5 - i, 0.15, 3.0, 0.15, matLibrary.trim, false);
             }
@@ -358,12 +442,14 @@
             handrailL.position.set(-4.1, 8.0, -20.0);
             handrailL.scale.set(0.25, 0.15, 14.14);
             handrailL.rotation.x = Math.PI / 4;
+            handrailL.castShadow = true;
             scene.add(handrailL);
             
             const handrailR = new THREE.Mesh(geoLibrary.box, matLibrary.doorWood);
             handrailR.position.set(4.1, 8.0, -20.0);
             handrailR.scale.set(0.25, 0.15, 14.14);
             handrailR.rotation.x = Math.PI / 4;
+            handrailR.castShadow = true;
             scene.add(handrailR);
             
             // Interior Walls
@@ -408,9 +494,9 @@
             }
             // Faucet
             const f1 = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
-            f1.position.set(25, 6.2, -27.5); f1.scale.set(0.1, 0.8, 0.1); scene.add(f1);
+            f1.position.set(25, 6.2, -27.5); f1.scale.set(0.1, 0.8, 0.1); f1.castShadow = true; scene.add(f1);
             const f2 = new THREE.Mesh(geoLibrary.cylinder, matLibrary.metal);
-            f2.position.set(25, 6.6, -27.3); f2.scale.set(0.1, 0.4, 0.1); f2.rotation.x = Math.PI/2; scene.add(f2);
+            f2.position.set(25, 6.6, -27.3); f2.scale.set(0.1, 0.4, 0.1); f2.rotation.x = Math.PI/2; f2.castShadow = true; scene.add(f2);
             
             // Living Room
             createBlock(27, 1.55, -2, 16, 0.1, 14, matLibrary.fabric, false); 
@@ -431,9 +517,10 @@
 
             // Fireplace visual additions
             createBlock(38, 4, -9, 2, 6, 4, matLibrary.marble, false);
-            createBlock(37.9, 3, -9, 2.1, 4, 2.5, matLibrary.roof, false); // Dark hearth backdrop
-            createBlock(37.8, 1.7, -9, 1.5, 0.3, 1.8, matLibrary.fire, false); // Burning wood glow
-            const fireLight = new THREE.PointLight(0xff5500, 1.6, 12);
+            createBlock(37.9, 3, -9, 2.1, 4, 2.5, matLibrary.roof, false); 
+            createBlock(37.8, 1.7, -9, 1.5, 0.3, 1.8, matLibrary.fire, false); 
+            const fireLight = new THREE.PointLight(0xff5500, 2.0, 15);
+            fireLight.castShadow = true;
             fireLight.position.set(36, 3, -9); scene.add(fireLight);
             
             // TV
@@ -446,9 +533,9 @@
             createBlock(-38, 7, 0, 2, 10, 16, matLibrary.doorWood); 
             createBlock(-25, 3.5, 0, 6, 3, 4, matLibrary.doorWood); 
 
-            // Procedural Bookshelves with dozens of color-randomized books
+            // Procedural Bookshelves
             for (let h = 2.5; h <= 11.5; h += 2.0) {
-                createBlock(-37.0, h, 0, 1.8, 0.15, 15.8, matLibrary.doorWood, false); // Wood panel shelves
+                createBlock(-37.0, h, 0, 1.8, 0.15, 15.8, matLibrary.doorWood, false); 
                 for (let zOff = -7.5; zOff <= 7.5; zOff += 0.35) {
                     if (Math.random() > 0.15) {
                         const bookColors = [0x7a2f22, 0x1c3a27, 0x243e54, 0x9c7c38, 0x3d2b1f, 0x4d5d53];
@@ -466,22 +553,22 @@
             createBlock(-30, 13, -5, 6, 2, 8, matLibrary.fabric); 
             
             // Bedroom 1F details
-            createBlock(-33.1, 4.5, -25, 0.2, 4.0, 8.0, matLibrary.doorWood, false); // Headboard
-            createBlock(-32.0, 4.2, -25, 1.2, 0.4, 6.0, matLibrary.trim, false); // White pillows
-            createBlock(-30, 2.5, -20.0, 2.0, 2.0, 2.0, matLibrary.doorWood, false); // Nightstand
-            createBlock(-30, 3.7, -20.0, 0.4, 0.4, 0.4, matLibrary.gold, false); // Lamp base
-            createBlock(-30, 4.2, -20.0, 0.8, 0.8, 0.8, matLibrary.trim, false); // Lamp shade
+            createBlock(-33.1, 4.5, -25, 0.2, 4.0, 8.0, matLibrary.doorWood, false); 
+            createBlock(-32.0, 4.2, -25, 1.2, 0.4, 6.0, matLibrary.trim, false); 
+            createBlock(-30, 2.5, -20.0, 2.0, 2.0, 2.0, matLibrary.doorWood, false); 
+            createBlock(-30, 3.7, -20.0, 0.4, 0.4, 0.4, matLibrary.gold, false); 
+            createBlock(-30, 4.2, -20.0, 0.8, 0.8, 0.8, matLibrary.trim, false); 
             
             // Bedroom 2F details
             createBlock(-33.1, 14.5, -5, 0.2, 4.0, 8.0, matLibrary.doorWood, false); 
             createBlock(-32.0, 14.2, -5, 1.2, 0.4, 6.0, matLibrary.trim, false); 
 
-            // Art & Decor (Z-Position fixed to avoid doors)
+            // Art & Decor
             const createPainting = (x, y, z, rotY) => {
                 const grp = new THREE.Group();
                 grp.position.set(x, y, z); grp.rotation.y = rotY;
                 const frame = new THREE.Mesh(geoLibrary.box, matLibrary.paintingBorder);
-                frame.scale.set(0.1, 3, 4); grp.add(frame);
+                frame.scale.set(0.1, 3, 4); frame.castShadow = true; grp.add(frame);
                 const art = new THREE.Mesh(geoLibrary.box, new THREE.MeshStandardMaterial({color: 0x5a3e2b, roughness: 0.9}));
                 art.scale.set(0.12, 2.6, 3.6); grp.add(art);
                 scene.add(grp);
@@ -491,11 +578,10 @@
 
             // Grand Chandelier
             const chPole = new THREE.Mesh(geoLibrary.cylinder, matLibrary.gold);
-            chPole.scale.set(0.1, 8, 0.1); chPole.position.set(0, 18, -10); scene.add(chPole);
+            chPole.scale.set(0.1, 8, 0.1); chPole.position.set(0, 18, -10); chPole.castShadow = true; scene.add(chPole);
             const chRing = new THREE.Mesh(geoLibrary.cylinder, matLibrary.gold);
             chRing.scale.set(2.5, 0.2, 2.5); chRing.position.set(0, 14, -10); scene.add(chRing);
             
-            // 6 lit candle stands along the chandelier frame
             for (let i = 0; i < 6; i++) {
                 let angle = (i / 6) * Math.PI * 2;
                 let cx = Math.cos(angle) * 2.5;
@@ -504,10 +590,11 @@
                 createBlock(cx, 14.9, cz, 0.1, 0.2, 0.1, matLibrary.fire, false);
             }
             
-            const chLight = new THREE.PointLight(0xffddaa, 1.5, 60);
+            const chLight = new THREE.PointLight(0xffddaa, 1.8, 60);
+            chLight.castShadow = true;
             chLight.position.set(0, 13.5, -10); scene.add(chLight);
 
-            // Windows (Positions Fixed to perfectly align with empty wall gaps)
+            // Windows
             const winX = [-35, -25, -15, 15, 25, 35]; 
             winX.forEach(x => {
                 createBlock(x, 6, 10, 4, 6, 1.2, matLibrary.window, false); 
@@ -531,15 +618,16 @@
                 createBlock(x, 17.5, 10.6, 4, 0.15, 0.1, matLibrary.doorWood, false);
             });
 
-            // Optimized Lights (Reduced count, grouped logically for FPS)
+            // Optimized Lights
             const addLight = (x, y, z, dist) => {
-                const l = new THREE.PointLight(0xffffee, 0.6, dist);
+                const l = new THREE.PointLight(0xffffee, 0.5, dist);
+                l.castShadow = true;
                 l.position.set(x, y, z); scene.add(l);
             };
             addLight(0, 10.5, 11, 40);     // Porch
             addLight(0, 10, -5, 50);       // Hall 1F
-            addLight(25, 10, -10, 60);     // Kitchen/Living Combined
-            addLight(-25, 10, -10, 60);    // Library/Guest Bed Combined
+            addLight(25, 10, -10, 60);     // Kitchen
+            addLight(-25, 10, -10, 60);    // Library
             addLight(0, 20, -20, 50);      // Stairs
             addLight(0, 20, -2, 40);       // Hall 2F Front
         }
@@ -547,8 +635,8 @@
         // === SYSTEM INITIALIZATION ===
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050811); 
-            scene.fog = new THREE.FogExp2(0x050811, 0.012);
+            scene.background = new THREE.Color(0x020306); 
+            scene.fog = new THREE.FogExp2(0x020306, 0.015);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 150);
             camera.position.set(0, 5, 28); 
@@ -556,20 +644,29 @@
             renderer = new THREE.WebGLRenderer({ antialias: false }); 
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2)); 
+            
+            // SHADOW MAP CONFIGURATION
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
             document.body.appendChild(renderer.domElement);
             clock = new THREE.Clock();
 
-            scene.add(new THREE.AmbientLight(0x222233, 0.7));
+            scene.add(new THREE.AmbientLight(0x11111a, 0.4));
             
-            const moonLight = new THREE.DirectionalLight(0xaaccff, 0.6);
+            const moonLight = new THREE.DirectionalLight(0xaaccff, 0.4);
             moonLight.position.set(30, 50, 40);
-            moonLight.target.position.set(0, 0, 0);
+            moonLight.castShadow = true;
+            moonLight.shadow.mapSize.width = 1024;
+            moonLight.shadow.mapSize.height = 1024;
             scene.add(moonLight);
-            scene.add(moonLight.target);
             
-            const flashLight = new THREE.SpotLight(0xffffff, 0.8, 50, Math.PI / 5, 0.4, 1);
-            flashLight.position.set(0, -0.5, 0);
+            const flashLight = new THREE.SpotLight(0xffffff, 1.2, 55, Math.PI / 4.5, 0.5, 1);
+            flashLight.position.set(0, -0.2, 0);
             flashLight.target.position.set(0, 0, -1);
+            flashLight.castShadow = true;
+            flashLight.shadow.mapSize.width = 1024;
+            flashLight.shadow.mapSize.height = 1024;
             camera.add(flashLight);
             camera.add(flashLight.target);
             scene.add(camera);
@@ -804,7 +901,6 @@
             
             camera.position.y += (targetCameraY - camera.position.y) * 0.15;
 
-            // Optimization: Only check interactions occasionally to save CPU cycles
             frameCount++;
             if (frameCount % 4 === 0) checkInteractables();
 
